@@ -1,46 +1,32 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Login from "./login.jsx";
 import "./App.css";
 
-async function readApiResponse(response) {
-  if (response.status === 502) {
-    throw new Error(
-      "Patient API is not running. Stop the old development server and restart the app with npm run dev.",
-    );
-  }
+const storageKey = "hospital-patient-messages";
 
-  const responseText = await response.text();
-  let result;
-
+function readStoredMessages() {
   try {
-    result = responseText ? JSON.parse(responseText) : {};
-  } catch {
-    throw new Error(
-      `Server returned an unexpected response (HTTP ${response.status}). Make sure the API server is running.`,
-    );
-  }
+    const savedMessages = localStorage.getItem(storageKey);
+    const patients = savedMessages ? JSON.parse(savedMessages) : [];
+    if (!Array.isArray(patients)) {
+      throw new Error("Saved patient messages are not in the expected format.");
+    }
 
-  if (!response.ok) {
-    throw new Error(result.error || `Request failed (HTTP ${response.status}).`);
+    return { patients, notice: "" };
+  } catch (error) {
+    console.error("Could not load locally saved patient messages:", error);
+    return {
+      patients: [],
+      notice: "Saved messages could not be loaded from this browser.",
+    };
   }
-
-  return result;
 }
 
-function getErrorMessage(error) {
-  if (error instanceof TypeError) {
-    return "Could not connect to the server. Start the app with npm run dev and try again.";
-  }
-
-  return error.message || "The request could not be completed.";
-}
-
-function App() {
-  const [patients, setPatients] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+function PatientMessages({ email, onLogout }) {
+  const [storedMessages] = useState(readStoredMessages);
+  const [patients, setPatients] = useState(storedMessages.patients);
   const [editingPatientId, setEditingPatientId] = useState(null);
-  const [notice, setNotice] = useState("");
-
+  const [notice, setNotice] = useState(storedMessages.notice);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -49,75 +35,63 @@ function App() {
     message: "",
   });
 
-  useEffect(() => {
-    async function loadPatients() {
-      try {
-        const response = await fetch("/api/patients");
-        const result = await readApiResponse(response);
-        setPatients(result);
-      } catch (error) {
-        setNotice(getErrorMessage(error));
-      } finally {
-        setLoading(false);
-      }
+  const savePatients = (updatedPatients) => {
+    setPatients(updatedPatients);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(updatedPatients));
+    } catch (error) {
+      console.error("Could not save patient messages in this browser:", error);
+      setNotice("Messages could not be saved in this browser. They will be lost when you leave this page.");
+      return false;
     }
+    return true;
+  };
 
-    loadPatients();
-  }, []);
+  const handleChange = (event) => {
+    setFormData((currentFormData) => ({
+      ...currentFormData,
+      [event.target.name]: event.target.value,
+    }));
+  };
 
-  const handleChange = (e) => {
+  const resetForm = () => {
+    setEditingPatientId(null);
     setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
+      name: "",
+      email: "",
+      phone: "",
+      source: "Website",
+      message: "",
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setNotice("");
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    const submittedAt = new Date();
 
-    try {
-      const isEditing = editingPatientId !== null;
-      const response = await fetch(
-        isEditing ? `/api/patients/${editingPatientId}` : "/api/patients",
-        {
-          method: isEditing ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
-        },
+    if (editingPatientId !== null) {
+      const saved = savePatients(
+        patients.map((patient) =>
+          patient.id === editingPatientId
+            ? { ...patient, ...formData }
+            : patient,
+        ),
       );
-      const result = await readApiResponse(response);
-
-      if (isEditing) {
-        setPatients((oldPatients) =>
-          oldPatients.map((patient) =>
-            patient.id === editingPatientId ? result.patient : patient,
-          ),
-        );
-        setNotice("Patient message updated.");
-      } else {
-        setPatients((oldPatients) => [result.patient, ...oldPatients]);
-        setNotice(
-          result.notificationSent
-            ? "Message saved and email notification sent."
-            : "Message saved, but email notification was not sent. Configure SMTP settings on the server.",
-        );
-      }
-
-      setEditingPatientId(null);
-      setFormData({
-        name: "",
-        email: "",
-        phone: "",
-        source: "Website",
-        message: "",
-      });
-    } catch (error) {
-      setNotice(getErrorMessage(error));
-    } finally {
-      setSaving(false);
+      if (saved) setNotice("Patient message updated in this browser.");
+    } else {
+      const saved = savePatients([
+        {
+          id: crypto.randomUUID(),
+          ...formData,
+          date: submittedAt.toLocaleDateString(),
+          time: submittedAt.toLocaleTimeString(),
+        },
+        ...patients,
+      ]);
+      if (saved) setNotice("Message saved in this browser. It was not sent by email.");
     }
+
+    resetForm();
   };
 
   const handleEdit = (patient) => {
@@ -134,77 +108,49 @@ function App() {
   };
 
   const handleCancelEdit = () => {
-    setEditingPatientId(null);
-    setFormData({
-      name: "",
-      email: "",
-      phone: "",
-      source: "Website",
-      message: "",
-    });
+    resetForm();
     setNotice("Edit cancelled.");
   };
 
-  const handleDelete = async (id) => {
-    setNotice("");
-    try {
-      const response = await fetch(`/api/patients/${id}`, { method: "DELETE" });
-      if (!response.ok) {
-        await readApiResponse(response);
-      }
-      setPatients((oldPatients) =>
-        oldPatients.filter((patient) => patient.id !== id)
-      );
-    } catch (error) {
-      setNotice(getErrorMessage(error));
+  const handleDelete = (id) => {
+    if (savePatients(patients.filter((patient) => patient.id !== id))) {
+      setNotice("Message deleted from this browser.");
     }
   };
 
   return (
     <div className="app">
-
-      {/* Header */}
       <header className="top-header">
         <div className="logo-section">
-          <img className="logo" src="/logo.jpg" alt="Multiple Hostital logo" />
-
+          <img className="logo" src="/logo.jpg" alt="Multiple Hospital logo" />
           <div>
-            <h1> Multiple Hostital</h1>
+            <h1>Multiple Hospital</h1>
             <p>Patient Communication Management</p>
           </div>
         </div>
-
-        <div className="admin-badge">
-          Admin Panel
+        <div className="logged-in-user">
+          <span>{email}</span>
+          <button className="admin-badge logout-button" type="button" onClick={onLogout}>
+            Log out
+          </button>
         </div>
       </header>
 
-
-      {/* Main */}
       <main className="main-container">
-
-        {/* Page Heading */}
         <div className="page-heading">
           <div>
             <h2>Patient Messages</h2>
-            <p>
-              Manage patient requests received from website, email and WhatsApp.
-            </p>
+            <p>Manage patient requests received from website, email and WhatsApp.</p>
           </div>
-
           <div className="message-count">
             <span>{patients.length}</span>
             <small>Total Messages</small>
           </div>
         </div>
 
-
-        {/* Form */}
         <section className="card">
-
           <div className="card-title">
             <img className="title-icon" src="/logo.jpg" alt="" />
-
             <div>
               <h3>{editingPatientId ? "Update Patient Message" : "New Patient Message"}</h3>
               <p>
@@ -215,15 +161,12 @@ function App() {
             </div>
           </div>
 
-
           <form onSubmit={handleSubmit}>
-
             <div className="form-grid">
-
               <div className="input-group">
-                <label>Patient Name *</label>
-
+                <label htmlFor="patient-name">Patient Name *</label>
                 <input
+                  id="patient-name"
                   type="text"
                   name="name"
                   required
@@ -232,12 +175,10 @@ function App() {
                   placeholder="Enter patient name"
                 />
               </div>
-
-
               <div className="input-group">
-                <label>Email Address *</label>
-
+                <label htmlFor="patient-email">Email Address *</label>
                 <input
+                  id="patient-email"
                   type="email"
                   name="email"
                   required
@@ -246,12 +187,10 @@ function App() {
                   placeholder="patient@example.com"
                 />
               </div>
-
-
               <div className="input-group">
-                <label>Phone Number *</label>
-
+                <label htmlFor="patient-phone">Phone Number *</label>
                 <input
+                  id="patient-phone"
                   type="tel"
                   name="phone"
                   required
@@ -260,12 +199,10 @@ function App() {
                   placeholder="+91 98765 43210"
                 />
               </div>
-
-
               <div className="input-group">
-                <label>Message Source</label>
-
+                <label htmlFor="patient-source">Message Source</label>
                 <select
+                  id="patient-source"
                   name="source"
                   value={formData.source}
                   onChange={handleChange}
@@ -275,102 +212,61 @@ function App() {
                   <option value="WhatsApp">WhatsApp</option>
                 </select>
               </div>
-
             </div>
 
-
             <div className="input-group full-width">
-              <label>Patient Message *</label>
-
+              <label htmlFor="patient-message">Patient Message *</label>
               <textarea
+                id="patient-message"
                 name="message"
                 required
                 value={formData.message}
                 onChange={handleChange}
                 placeholder="Write patient message here..."
                 rows="5"
-              ></textarea>
+              />
             </div>
 
-
             <div className="form-footer">
-
               <p aria-live="polite">
-                {notice || "Please verify the patient information before submitting."}
+                {notice || "Messages are stored only in this browser."}
               </p>
-
               <div className="form-actions">
                 {editingPatientId && (
                   <button
                     className="cancel-button"
                     type="button"
                     onClick={handleCancelEdit}
-                    disabled={saving}
                   >
                     Cancel
                   </button>
                 )}
-                <button type="submit" disabled={saving}>
-                  {saving
-                    ? editingPatientId
-                      ? "Updating..."
-                      : "Submitting..."
-                    : editingPatientId
-                      ? "Update Message"
-                      : "Submit Message"}
+                <button type="submit">
+                  {editingPatientId ? "Update Message" : "Submit Message"}
                 </button>
               </div>
-
             </div>
-
           </form>
-
         </section>
 
-
-        {/* Messages */}
         <section className="card">
-
           <div className="messages-header">
-
             <div>
               <h3>Received Patient Messages</h3>
-              <p>All messages received from patients</p>
+              <p>Messages saved in this browser</p>
             </div>
-
-            <div className="received-number">
-              {patients.length}
-            </div>
-
+            <div className="received-number">{patients.length}</div>
           </div>
 
-
-          {loading ? (
+          {patients.length === 0 ? (
             <div className="empty-state">
-              <p>Loading patient messages...</p>
-            </div>
-          ) : patients.length === 0 ? (
-
-            <div className="empty-state">
-
-              <div className="empty-icon">
-                ✉
-              </div>
-
+              <div className="empty-icon" aria-hidden="true">✉</div>
               <h3>No messages yet</h3>
-
-              <p>
-                Patient messages will appear here after submission.
-              </p>
-
+              <p>Patient messages will appear here after submission.</p>
             </div>
-
           ) : (
-
             <div className="table-wrapper">
-
               <table>
-
                 <thead>
                   <tr>
                     <th>#</th>
@@ -378,67 +274,38 @@ function App() {
                     <th>Contact</th>
                     <th>Source</th>
                     <th>Message</th>
-                    <th>Date & Time</th>
+                    <th>Date &amp; Time</th>
                     <th>Action</th>
                   </tr>
                 </thead>
-
                 <tbody>
-
                   {patients.map((patient, index) => (
-
                     <tr key={patient.id}>
-
-                      <td>
-                        <span className="number">
-                          {index + 1}
-                        </span>
-                      </td>
-
-
+                      <td><span className="number">{index + 1}</span></td>
                       <td>
                         <div className="patient-name">
-                          <div className="avatar">
-                            {patient.name.charAt(0).toUpperCase()}
-                          </div>
-
+                          <div className="avatar">{patient.name.charAt(0).toUpperCase()}</div>
                           <strong>{patient.name}</strong>
                         </div>
                       </td>
-
-
                       <td>
                         <div className="contact-info">
                           <span>{patient.email}</span>
                           <span>{patient.phone}</span>
                         </div>
                       </td>
-
-
                       <td>
-                        <span
-                          className={`source ${patient.source.toLowerCase()}`}
-                        >
+                        <span className={`source ${patient.source.toLowerCase()}`}>
                           {patient.source}
                         </span>
                       </td>
-
-
-                      <td>
-                        <div className="table-message">
-                          {patient.message}
-                        </div>
-                      </td>
-
-
+                      <td><div className="table-message">{patient.message}</div></td>
                       <td>
                         <div className="date-time">
                           <strong>{patient.date}</strong>
                           <span>{patient.time}</span>
                         </div>
                       </td>
-
-
                       <td>
                         <div className="message-actions">
                           <button
@@ -457,31 +324,30 @@ function App() {
                           </button>
                         </div>
                       </td>
-
                     </tr>
-
                   ))}
-
                 </tbody>
-
               </table>
-
             </div>
-
           )}
-
         </section>
-
       </main>
 
-
-      {/* Footer */}
       <footer>
-        <p> R.V HealthCare Portal | Patient Communication System</p>
+        <p>R.V HealthCare Portal | Patient Communication System</p>
       </footer>
-
     </div>
   );
+}
+
+function App() {
+  const [loginEmail, setLoginEmail] = useState("");
+
+  if (!loginEmail) {
+    return <Login onAuthenticated={setLoginEmail} />;
+  }
+
+  return <PatientMessages email={loginEmail} onLogout={() => setLoginEmail("")} />;
 }
 
 export default App;

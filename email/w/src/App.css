@@ -8,6 +8,7 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   background: #f4f7fb;
   color: #172033;
+  overflow-x: hidden;
 }
 
 
@@ -112,6 +113,7 @@ body {
 }
 
 .login-welcome h1 {
+  display: inline-block;
   color: #16375e;
   font-size: clamp(22px, 2.5vw, 32px);
   line-height: 1.2;
@@ -122,7 +124,7 @@ body {
   top: 50%;
   left: 50%;
   z-index: 1;
-  width: min(100%, 520px);
+  width: min(100%, 560px);
   max-height: calc(100% - 150px);
   overflow-y: auto;
   transform: translate(-50%, -50%);
@@ -153,7 +155,7 @@ body {
 }
 
 .login-card-content {
-  padding: 36px 46px 38px;
+  padding: 56px 50px 58px;
 }
 
 .login-card-content h2 {
@@ -286,6 +288,44 @@ body {
   background: transparent;
   color: #1769aa;
   font-size: 14px;
+}
+
+.login-link-button {
+  display: block;
+  margin: 12px auto 0;
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  color: #1769aa;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-forget-link {
+  width: 100%;
+  margin: 6px 0 0;
+  padding: 4px 0;
+  text-align: right;
+}
+
+.login-link-button:hover {
+  color: #0b4f8d;
+  text-decoration: underline;
+}
+
+.login-link-button:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #2477a9;
+  outline-offset: 2px;
+}
+
+.login-notice {
+  margin-top: 12px;
+  color: #1769aa;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .login-divider {
@@ -924,32 +964,64 @@ footer {
 
   .login-card {
     width: min(100%, 480px);
+    max-height: calc(100svh - 112px);
   }
 
   .top-header {
-    padding: 0 20px;
+    height: auto;
+    min-height: 72px;
+    gap: 12px;
+    padding: 12px 20px;
   }
 
-  .admin-badge {
-    display: none;
+  .logo-section {
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .logo-section h1 {
+    font-size: clamp(16px, 3vw, 21px);
+  }
+
+  .logo-section p {
+    font-size: 11px;
   }
 
   .logged-in-user > span {
     display: none;
   }
 
+  .admin-badge.logout-button {
+    display: inline-block;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
+
   .main-container {
-    width: 92%;
+    width: min(94%, 1450px);
+    margin: 24px auto;
   }
 
   .page-heading {
     align-items: flex-start;
-
     gap: 20px;
+  }
+
+  .page-heading h2 {
+    font-size: clamp(21px, 4vw, 28px);
+  }
+
+  .page-heading p {
+    line-height: 1.45;
+  }
+
+  .card {
+    padding: 22px;
   }
 
   .form-grid {
     grid-template-columns: 1fr;
+    gap: 0;
   }
 
   .form-footer {
@@ -976,23 +1048,112 @@ footer {
 }
 
 @media (max-width: 480px) {
+  .login-welcome {
+    top: 14px;
+  }
+
+  .login-welcome h1 {
+    font-size: clamp(18px, 5vw, 22px);
+  }
+
   .login-card-content {
     padding: 24px 24px 26px;
   }
 
-  .login-welcome h1 {
-    font-size: 22px;
+  .login-card-brand {
+    min-height: 56px;
+    font-size: 16px;
   }
 
   .login-description {
     font-size: 12px;
+  }
+
+  .top-header {
+    padding: 10px 12px;
+  }
+
+  .logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .logo-section p {
+    max-width: 180px;
+    line-height: 1.25;
+  }
+
+  .logged-in-user {
+    gap: 0;
+  }
+
+  .admin-badge.logout-button {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .main-container {
+    width: calc(100% - 24px);
+    margin: 20px auto;
+  }
+
+  .page-heading {
+    gap: 10px;
+  }
+
+  .page-heading p {
+    font-size: 12px;
+  }
+
+  .message-count {
+    flex-shrink: 0;
+    padding: 9px 12px;
+  }
+
+  .message-count span {
+    font-size: 21px;
+  }
+
+  .card {
+    padding: 16px;
+    border-radius: 11px;
+  }
+
+  .card-title {
+    gap: 10px;
+    padding-bottom: 16px;
+    margin-bottom: 18px;
+  }
+
+  .card-title h3 {
+    font-size: 16px;
+  }
+
+  .messages-header {
+    gap: 12px;
+  }
+
+  .messages-header h3 {
+    font-size: 16px;
+  }
+
+  .empty-state {
+    padding: 36px 12px;
+  }
+
+  .form-footer p {
+    max-width: 100%;
+  }
+
+  .form-actions {
+    flex-wrap: wrap;
   }
 }
 
 @media (max-height: 650px) {
   .login-card {
     top: 50%;
-    max-height: calc(100% - 110px);
+    max-height: calc(100svh - 90px);
     transform: translate(-50%, -50%);
   }
 
